@@ -64,9 +64,9 @@
     .swatch:hover  { transform: scale(1.2); }
     .swatch.active { border-color: #fff; transform: scale(1.25); }
 
-    /* Brush-size slider */
-    #brushLabel { font-size: .8rem; white-space: nowrap; }
-    #brushSize  { width: 80px; accent-color: #a78bfa; }
+    /* Opacity slider */
+    #opacityLabel { font-size: .8rem; white-space: nowrap; }
+    #opacitySlider { width: 80px; accent-color: #a78bfa; }
 
     /* Tool buttons */
     .tool-btn {
@@ -96,20 +96,13 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      background: #1a1a2e;
+      background: #000000;
       touch-action: none;
     }
 
-    /* Webcam feed (middle – mirrored) */
+    /* Webcam feed – hidden (no camera background) */
     #videoEl {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1);
-      opacity: 0.18;
-      pointer-events: none;
+      display: none;
     }
 
     /* Skeleton overlay (top) */
@@ -233,18 +226,19 @@
 
   <div class="sep"></div>
 
-  <!-- Brush size -->
-  <label id="brushLabel" for="brushSize">Brush: <span id="brushVal">6</span>px</label>
-  <input type="range" id="brushSize" min="1" max="40" value="6" />
+  <!-- Opacity control -->
+  <label id="opacityLabel" for="opacitySlider">Opacity: <span id="opacityVal">100</span>%</label>
+  <input type="range" id="opacitySlider" min="5" max="100" value="100" />
 
   <div class="sep"></div>
 
   <!-- Tool buttons -->
   <button class="tool-btn active" id="btnDraw"  title="Draw (☝ index up)">✏️ Draw</button>
-  <button class="tool-btn"        id="btnErase" title="Erase (✌ two fingers)">🧹 Erase</button>
+  <button class="tool-btn"        id="btnErase" title="Erase (manual)">🧹 Erase</button>
   <button class="tool-btn"        id="btnMove"  title="Move drawing (🤏 pinch + drag)">🫴 Move</button>
+  <button class="tool-btn"        id="btnUndo"  title="Undo last stroke (Ctrl+Z / ☝✌ three fingers)">↩️ Undo</button>
   <button class="tool-btn"        id="btnClear" title="Clear all (✊ fist)">🗑️ Clear</button>
-  <button class="tool-btn"        id="btnSave"  title="Save image">💾 Save</button>
+  <button class="tool-btn"        id="btnSave"  title="Save image (👍 thumbs-up)">💾 Save</button>
 
   <div class="sep"></div>
   <span style="font-size:.75rem;opacity:.6">📷 Camera required</span>
@@ -261,12 +255,11 @@
   <div id="legend">
     <strong>Gesture Guide</strong>
     ☝️ One finger → Draw<br>
-    ✌️ Two fingers → Erase<br>
     🤏 Pinch + Move → Grab &amp; drag<br>
     ✊ Fist → Clear all<br>
     🖐️ Open hand → Pause<br>
     👍 Thumbs-up → Save<br>
-    🤏 Pinch (Draw mode) → Resize brush
+    🤞 Three fingers → Undo
   </div>
 
   <!-- HUD -->
@@ -288,26 +281,29 @@
    Hand-Controlled Drawing Canvas
    – MediaPipe Hands for landmark tracking
    – Index fingertip (landmark 8) drives a virtual cursor
-   – Gesture recognition for draw / erase / clear / pause / save
+   – Gesture recognition for draw / move / clear / pause / save / undo
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Colour palette ─────────────────────────────────────────────────────── */
 const COLOURS = [
   '#ffffff','#f87171','#fb923c','#fbbf24',
   '#a3e635','#34d399','#38bdf8','#818cf8',
-  '#e879f9','#000000',
+  '#e879f9','#f472b6','#facc15','#4ade80',
+  '#22d3ee','#c084fc','#ff6b6b','#000000',
 ];
 
 let currentColour = '#ffffff';
 let currentTool   = 'draw'; // 'draw' | 'erase' | 'move'
-let brushSize     = 6;
+let brushSize     = 8;
+let brushOpacity  = 1.0;
 
-const paletteEl  = document.getElementById('palette');
-const brushSlider= document.getElementById('brushSize');
-const brushValEl = document.getElementById('brushVal');
+const paletteEl    = document.getElementById('palette');
+const opacitySlider= document.getElementById('opacitySlider');
+const opacityValEl = document.getElementById('opacityVal');
 const btnDraw    = document.getElementById('btnDraw');
 const btnErase   = document.getElementById('btnErase');
 const btnMove    = document.getElementById('btnMove');
+const btnUndo    = document.getElementById('btnUndo');
 const btnClear   = document.getElementById('btnClear');
 const btnSave    = document.getElementById('btnSave');
 const hudEl      = document.getElementById('hud');
@@ -337,10 +333,10 @@ COLOURS.forEach(c => {
   paletteEl.appendChild(s);
 });
 
-/* ── Brush slider ───────────────────────────────────────────────────────── */
-brushSlider.addEventListener('input', () => {
-  brushSize = +brushSlider.value;
-  brushValEl.textContent = brushSize;
+/* ── Opacity slider ─────────────────────────────────────────────────────── */
+opacitySlider.addEventListener('input', () => {
+  brushOpacity = +opacitySlider.value / 100;
+  opacityValEl.textContent = opacitySlider.value;
 });
 
 /* ── Tool helpers ───────────────────────────────────────────────────────── */
@@ -360,20 +356,22 @@ function setTool(t) {
 btnDraw.addEventListener('click',  () => setTool('draw'));
 btnErase.addEventListener('click', () => setTool('erase'));
 btnMove.addEventListener('click',  () => setTool('move'));
+btnUndo.addEventListener('click',  undoStroke);
 btnClear.addEventListener('click', clearCanvas);
 btnSave.addEventListener('click',  saveImage);
 
 function clearCanvas() {
+  saveUndoState();
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 }
 
 function saveImage() {
-  // Composite background + drawing
+  // Composite black background + drawing
   const tmp = document.createElement('canvas');
   tmp.width  = drawCanvas.width;
   tmp.height = drawCanvas.height;
   const tc = tmp.getContext('2d');
-  tc.fillStyle = '#1a1a2e';
+  tc.fillStyle = '#000000';
   tc.fillRect(0, 0, tmp.width, tmp.height);
   tc.drawImage(drawCanvas, 0, 0);
   const a = document.createElement('a');
@@ -381,6 +379,27 @@ function saveImage() {
   a.download = 'hand-canvas.png';
   a.click();
 }
+
+/* ── Undo history ───────────────────────────────────────────────────────── */
+const MAX_UNDO = 30;
+const undoStack = [];
+
+function saveUndoState() {
+  undoStack.push(drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+function undoStroke() {
+  if (undoStack.length === 0) return;
+  const state = undoStack.pop();
+  drawCtx.putImageData(state, 0, 0);
+  hudEl.textContent = '↩️ Undone';
+}
+
+// Keyboard shortcut: Ctrl+Z / Cmd+Z
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoStroke(); }
+});
 
 /* ── Grab / drag state ──────────────────────────────────────────────────── */
 let grabCanvas  = null;   // temp canvas holding the lifted region
@@ -493,6 +512,7 @@ function paintAt(x, y, draw) {
     drawCtx.lineWidth   = brushSize * 4;
   } else {
     drawCtx.globalCompositeOperation = 'source-over';
+    drawCtx.globalAlpha = brushOpacity;
     drawCtx.strokeStyle = currentColour;
     drawCtx.lineWidth   = brushSize;
   }
@@ -511,6 +531,7 @@ function paintAt(x, y, draw) {
     drawCtx.fill();
   }
 
+  drawCtx.globalAlpha = 1;
   lastX = x; lastY = y;
 }
 
@@ -538,16 +559,16 @@ function classifyGesture(lm) {
   // Thumb: compare x (mirrored feed)
   const thumbUp  = lm[4].x < lm[3].x;   // for left-hand mirror of right hand
 
-  if (indexUp && !middleUp && !ringUp && !pinkyUp)        return 'draw';    // ☝️
-  if (indexUp &&  middleUp && !ringUp && !pinkyUp)        return 'erase';   // ✌️
+  if (indexUp && !middleUp && !ringUp && !pinkyUp)        return 'draw';      // ☝️
+  if (indexUp &&  middleUp &&  ringUp && !pinkyUp)        return 'threefinger'; // 🤞 Undo
   if (!indexUp && !middleUp && !ringUp && !pinkyUp && !thumbUp) return 'fist'; // ✊
-  if (indexUp &&  middleUp &&  ringUp &&  pinkyUp)        return 'open';    // 🖐
+  if (indexUp &&  middleUp &&  ringUp &&  pinkyUp)        return 'open';      // 🖐
   if (thumbUp && !indexUp  && !middleUp && !ringUp && !pinkyUp) return 'thumbsup'; // 👍
 
   // Pinch: index tip close to thumb tip
   const dx = lm[8].x - lm[4].x;
   const dy = lm[8].y - lm[4].y;
-  if (Math.sqrt(dx*dx + dy*dy) < 0.06)                   return 'pinch';   // 🤏
+  if (Math.sqrt(dx*dx + dy*dy) < 0.06)                   return 'pinch';     // 🤏
 
   return 'unknown';
 }
@@ -570,23 +591,20 @@ let smoothX = 0, smoothY = 0;
 const CURSOR_ALPHA = 0.4;
 
 /* Fist-clear cooldown (avoid repeated clears) */
-let fistCooldown = 0;
+let fistCooldown  = 0;
 let thumbCooldown = 0;
-
-/* Pinch-to-resize state */
-let pinchStart = null;
-let pinchBrush0 = brushSize;
+let undoCooldown  = 0;
 
 /* ── HUD messages ─────────────────────────────────────────────────────── */
 const gestureLabels = {
-  draw:     '☝️ Drawing',
-  erase:    '✌️ Erasing',
-  fist:     '✊ Clear!',
-  open:     '🖐 Paused',
-  thumbsup: '👍 Saving…',
-  pinch:    '🤏 Resizing brush',
-  grab:     '🫴 Dragging…',
-  unknown:  '🤔 Unknown gesture',
+  draw:        '☝️ Drawing',
+  threefinger: '🤞 Undo!',
+  fist:        '✊ Clear!',
+  open:        '🖐 Paused',
+  thumbsup:    '👍 Saving…',
+  pinch:       '🤏 Dragging…',
+  grab:        '🫴 Dragging…',
+  unknown:     '🤔 Unknown gesture',
 };
 
 /* ── MediaPipe Hands setup ──────────────────────────────────────────────── */
@@ -651,18 +669,22 @@ function onResults(results) {
   // ── React to gesture ──────────────────────────────────────────────────
   fistCooldown  = Math.max(0, fistCooldown  - 1);
   thumbCooldown = Math.max(0, thumbCooldown - 1);
+  undoCooldown  = Math.max(0, undoCooldown  - 1);
 
   switch (gesture) {
     case 'draw':
       setTool('draw');
+      if (!isDrawing) saveUndoState();
       paintAt(smoothX, smoothY, true);
       isDrawing = true;
       break;
 
-    case 'erase':
-      setTool('erase');
-      paintAt(smoothX, smoothY, true);
-      isDrawing = true;
+    case 'threefinger':
+      if (undoCooldown === 0) {
+        undoStroke();
+        undoCooldown = 45;
+      }
+      isDrawing = false; lastX = null; lastY = null;
       break;
 
     case 'fist':
@@ -690,33 +712,17 @@ function onResults(results) {
       if (currentTool === 'move') {
         // ── Grab & drag ────────────────────────────────────────────────
         if (!grabActive) startGrab(smoothX, smoothY);
-        // Draw the floating preview on the skeleton overlay.
-        // After startGrab, grabActive is always true so show "Dragging".
         drawGrabPreview(smoothX, smoothY);
         hudEl.textContent = gestureLabels.grab;
-      } else {
-        // ── Brush resize ───────────────────────────────────────────────
-        const dx   = lm[8].x - lm[4].x;
-        const dy   = lm[8].y - lm[4].y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        if (pinchStart === null) { pinchStart = dist; pinchBrush0 = brushSize; }
-        const newSize = Math.round(Math.max(1, Math.min(40, pinchBrush0 + (dist - pinchStart) * 200)));
-        brushSize = newSize;
-        brushSlider.value      = newSize;
-        brushValEl.textContent = newSize;
-        hudEl.textContent = gestureLabels.pinch;
       }
+      // pinch in draw/erase mode does nothing (brush resize removed)
       isDrawing = false; lastX = null; lastY = null;
       break;
     }
 
     default:
-      // pinchStart reset is handled by the post-switch guard below
       isDrawing = false; lastX = null; lastY = null;
   }
-
-  // Reset pinchStart whenever we are not in a pinch gesture
-  if (gesture !== 'pinch') pinchStart = null;
 }
 
 /* ── Camera start ────────────────────────────────────────────────────────── */
@@ -749,6 +755,7 @@ let mouseDown = false;
 drawCanvas.addEventListener('pointerdown', e => {
   mouseDown = true;
   lastX = null; lastY = null;
+  saveUndoState();
   if (currentTool === 'move') {
     startGrab(e.offsetX, e.offsetY);
   } else {
