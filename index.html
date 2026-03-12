@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hand-Controlled Drawing Canvas</title>
+  <title>Hand Drawing</title>
 
   <!-- MediaPipe Hands -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -15,82 +15,20 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0f0f1a;
-      color: #e0e0ff;
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #000000;
       height: 100vh;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
     }
-
-    /* ── Top Bar ─────────────────────────────────────────────────────────── */
-    #topbar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 16px;
-      background: rgba(255,255,255,0.05);
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      flex-shrink: 0;
-      flex-wrap: wrap;
-      z-index: 10;
-    }
-
-    #topbar h1 {
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 1px;
-      color: #a78bfa;
-      white-space: nowrap;
-    }
-
-    .sep { width: 1px; height: 28px; background: rgba(255,255,255,0.15); }
-
-    /* Colour swatches */
-    #palette {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .swatch {
-      width: 26px; height: 26px;
-      border-radius: 50%;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: transform .15s, border-color .15s;
-    }
-    .swatch:hover  { transform: scale(1.2); }
-    .swatch.active { border-color: #fff; transform: scale(1.25); }
-
-    /* Opacity slider */
-    #opacityLabel { font-size: .8rem; white-space: nowrap; }
-    #opacitySlider { width: 80px; accent-color: #a78bfa; }
-
-    /* Tool buttons */
-    .tool-btn {
-      padding: 5px 12px;
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 20px;
-      background: rgba(255,255,255,0.06);
-      color: #e0e0ff;
-      cursor: pointer;
-      font-size: .8rem;
-      transition: background .15s, border-color .15s;
-      white-space: nowrap;
-    }
-    .tool-btn:hover  { background: rgba(255,255,255,0.14); }
-    .tool-btn.active { background: #a78bfa33; border-color: #a78bfa; }
 
     /* ── Main area ───────────────────────────────────────────────────────── */
     #main {
-      flex: 1;
+      width: 100vw;
+      height: 100vh;
       position: relative;
       overflow: hidden;
     }
 
-    /* Drawing canvas (bottom layer) */
+    /* Drawing canvas */
     #drawCanvas {
       position: absolute;
       inset: 0;
@@ -100,12 +38,10 @@
       touch-action: none;
     }
 
-    /* Webcam feed – hidden (no camera background) */
-    #videoEl {
-      display: none;
-    }
+    /* Webcam feed – hidden */
+    #videoEl { display: none; }
 
-    /* Skeleton overlay (top) */
+    /* Skeleton overlay */
     #skelCanvas {
       position: absolute;
       inset: 0;
@@ -119,51 +55,41 @@
       position: absolute;
       width: 16px; height: 16px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.9);
+      background: #FF6600;
       pointer-events: none;
       transform: translate(-50%, -50%);
-      transition: width .08s, height .08s, background .08s;
-      box-shadow: 0 0 8px 2px rgba(255,255,255,0.6);
+      transition: width .08s, height .08s, background .08s, box-shadow .08s;
+      box-shadow: 0 0 10px 3px rgba(255,102,0,0.8);
       z-index: 20;
       display: none;
     }
 
-    /* ── Gesture HUD ─────────────────────────────────────────────────────── */
+    /* Cursor turns neon blue when grabbing */
+    #cursor.grabbing {
+      width: 22px; height: 22px;
+      background: #00BFFF;
+      box-shadow: 0 0 16px 5px rgba(0,191,255,0.8);
+    }
+
+    /* ── HUD ─────────────────────────────────────────────────────────────── */
     #hud {
       position: absolute;
       bottom: 16px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.55);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 12px;
-      padding: 8px 20px;
-      font-size: .85rem;
+      padding: 6px 18px;
+      font-size: .8rem;
       letter-spacing: .5px;
-      color: #c4b5fd;
+      color: #FF6600;
       pointer-events: none;
       z-index: 30;
-      text-align: center;
+      font-family: 'Segoe UI', system-ui, sans-serif;
     }
 
-    /* ── Legend panel ────────────────────────────────────────────────────── */
-    #legend {
-      position: absolute;
-      top: 12px;
-      right: 14px;
-      background: rgba(0,0,0,0.55);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: .75rem;
-      line-height: 1.8;
-      pointer-events: none;
-      z-index: 30;
-      color: #cbd5e1;
-    }
-    #legend strong { color: #a78bfa; display: block; margin-bottom: 4px; }
-
-    /* ── Camera-off notice ───────────────────────────────────────────────── */
+    /* ── Camera permission notice ────────────────────────────────────────── */
     #camNotice {
       position: absolute;
       inset: 0;
@@ -171,141 +97,56 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 14px;
-      background: rgba(15,15,26,0.92);
+      gap: 16px;
+      background: #000000;
       z-index: 50;
-      font-size: 1rem;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #ffffff;
       text-align: center;
       padding: 24px;
     }
-    #camNotice p { max-width: 360px; opacity: .75; line-height: 1.6; }
+    #camNotice p { max-width: 320px; opacity: .65; line-height: 1.6; font-size: .9rem; }
     #startBtn {
-      padding: 10px 28px;
+      padding: 10px 32px;
       border-radius: 24px;
-      border: none;
-      background: #a78bfa;
-      color: #fff;
+      border: 2px solid #FF6600;
+      background: transparent;
+      color: #FF6600;
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity .2s;
+      transition: background .2s, color .2s;
     }
-    #startBtn:hover { opacity: .85; }
-
-    /* ── Eraser tooltip ──────────────────────────────────────────────────── */
-    .eraser-mode #cursor {
-      background: rgba(255,80,80,0.85);
-      box-shadow: 0 0 10px 3px rgba(255,80,80,0.5);
-    }
-
-    /* ── Move / grab mode ────────────────────────────────────────────────── */
-    .move-mode #cursor {
-      background: rgba(251,191,36,0.9);
-      box-shadow: 0 0 10px 3px rgba(251,191,36,0.5);
-      cursor: grab;
-    }
-    .move-mode.grabbing #cursor {
-      width: 22px; height: 22px;
-      background: rgba(251,191,36,1);
-      box-shadow: 0 0 16px 5px rgba(251,191,36,0.7);
-      cursor: grabbing;
-    }
+    #startBtn:hover { background: #FF6600; color: #000; }
   </style>
 </head>
 <body>
 
-<!-- ── Top toolbar ──────────────────────────────────────────────────────── -->
-<div id="topbar">
-  <h1>✋ Hand Canvas</h1>
-  <div class="sep"></div>
-
-  <!-- Colour palette -->
-  <div id="palette">
-    <span style="font-size:.8rem;opacity:.7">Color:</span>
-  </div>
-
-  <div class="sep"></div>
-
-  <!-- Opacity control -->
-  <label id="opacityLabel" for="opacitySlider">Opacity: <span id="opacityVal">100</span>%</label>
-  <input type="range" id="opacitySlider" min="5" max="100" value="100" />
-
-  <div class="sep"></div>
-
-  <!-- Tool buttons -->
-  <button class="tool-btn active" id="btnDraw"  title="Draw (☝ index up)">✏️ Draw</button>
-  <button class="tool-btn"        id="btnErase" title="Erase (manual)">🧹 Erase</button>
-  <button class="tool-btn"        id="btnMove"  title="Move drawing (🤏 pinch + drag)">🫴 Move</button>
-  <button class="tool-btn"        id="btnUndo"  title="Undo last stroke (Ctrl+Z / ☝✌ three fingers)">↩️ Undo</button>
-  <button class="tool-btn"        id="btnClear" title="Clear all (✊ fist)">🗑️ Clear</button>
-  <button class="tool-btn"        id="btnSave"  title="Save image (👍 thumbs-up)">💾 Save</button>
-
-  <div class="sep"></div>
-  <span style="font-size:.75rem;opacity:.6">📷 Camera required</span>
-</div>
-
-<!-- ── Main canvas area ──────────────────────────────────────────────────── -->
 <div id="main">
   <canvas id="drawCanvas"></canvas>
   <video  id="videoEl" playsinline autoplay muted></video>
   <canvas id="skelCanvas"></canvas>
   <div    id="cursor"></div>
+  <div    id="hud">Waiting for hand…</div>
 
-  <!-- Gesture legend -->
-  <div id="legend">
-    <strong>Gesture Guide</strong>
-    ☝️ One finger → Draw<br>
-    🤏 Pinch + Move → Grab &amp; drag<br>
-    ✊ Fist → Clear all<br>
-    🖐️ Open hand → Pause<br>
-    👍 Thumbs-up → Save<br>
-    🤞 Three fingers → Undo
-  </div>
-
-  <!-- HUD -->
-  <div id="hud">Waiting for hand…</div>
-
-  <!-- Camera permission notice -->
   <div id="camNotice">
     <div style="font-size:3rem">✋</div>
-    <h2 style="font-size:1.3rem;font-weight:700;color:#a78bfa">Hand-Controlled Drawing</h2>
-    <p>Draw on this canvas using just your hand and a webcam.<br>
-       Point with your index finger to paint. Use different gestures to switch tools.</p>
+    <h2 style="font-size:1.2rem;font-weight:700;color:#FF6600">Hand Drawing</h2>
+    <p>☝️ Point with index finger to draw<br>🤏 Pinch to grab &amp; move</p>
     <button id="startBtn">Enable Camera</button>
-    <p style="font-size:.75rem">Your camera feed stays on your device — nothing is uploaded.</p>
+    <p style="font-size:.75rem">Camera stays on your device — nothing is uploaded.</p>
   </div>
 </div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
-   Hand-Controlled Drawing Canvas
-   – MediaPipe Hands for landmark tracking
-   – Index fingertip (landmark 8) drives a virtual cursor
-   – Gesture recognition for draw / move / clear / pause / save / undo
+   Hand Drawing – index finger draws neon orange, pinch to move (neon blue)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Colour palette ─────────────────────────────────────────────────────── */
-const COLOURS = [
-  '#ffffff','#f87171','#fb923c','#fbbf24',
-  '#a3e635','#34d399','#38bdf8','#818cf8',
-  '#e879f9','#f472b6','#facc15','#4ade80',
-  '#22d3ee','#c084fc','#ff6b6b','#000000',
-];
+const DRAW_COLOUR = '#FF6600'; // neon orange
+const GRAB_COLOUR = '#00BFFF'; // neon blue (shown when moving grabbed piece)
+const BRUSH_SIZE  = 8;
 
-let currentColour = '#ffffff';
-let currentTool   = 'draw'; // 'draw' | 'erase' | 'move'
-let brushSize     = 8;
-let brushOpacity  = 1.0;
-
-const paletteEl    = document.getElementById('palette');
-const opacitySlider= document.getElementById('opacitySlider');
-const opacityValEl = document.getElementById('opacityVal');
-const btnDraw    = document.getElementById('btnDraw');
-const btnErase   = document.getElementById('btnErase');
-const btnMove    = document.getElementById('btnMove');
-const btnUndo    = document.getElementById('btnUndo');
-const btnClear   = document.getElementById('btnClear');
-const btnSave    = document.getElementById('btnSave');
 const hudEl      = document.getElementById('hud');
 const cursorEl   = document.getElementById('cursor');
 const camNotice  = document.getElementById('camNotice');
@@ -315,73 +156,11 @@ const skelCanvas = document.getElementById('skelCanvas');
 const videoEl    = document.getElementById('videoEl');
 const mainEl     = document.getElementById('main');
 
-const drawCtx    = drawCanvas.getContext('2d');
-const skelCtx    = skelCanvas.getContext('2d');
-
-/* ── Build colour swatches ──────────────────────────────────────────────── */
-COLOURS.forEach(c => {
-  const s = document.createElement('div');
-  s.className = 'swatch' + (c === currentColour ? ' active' : '');
-  s.style.background = c;
-  if (c === '#000000') s.style.border = '2px solid #555';
-  s.addEventListener('click', () => {
-    document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
-    s.classList.add('active');
-    currentColour = c;
-    setTool('draw');
-  });
-  paletteEl.appendChild(s);
-});
-
-/* ── Opacity slider ─────────────────────────────────────────────────────── */
-opacitySlider.addEventListener('input', () => {
-  brushOpacity = +opacitySlider.value / 100;
-  opacityValEl.textContent = opacitySlider.value;
-});
-
-/* ── Tool helpers ───────────────────────────────────────────────────────── */
-function setTool(t) {
-  // Drop any in-flight grab when switching away from move mode.
-  // grabActive is only true after a real user interaction so smoothX/Y are valid.
-  if (grabActive && t !== 'move') dropGrab(smoothX, smoothY);
-  currentTool = t;
-  btnDraw.classList.toggle('active',  t === 'draw');
-  btnErase.classList.toggle('active', t === 'erase');
-  btnMove.classList.toggle('active',  t === 'move');
-  mainEl.classList.toggle('eraser-mode', t === 'erase');
-  mainEl.classList.toggle('move-mode',   t === 'move');
-  if (t !== 'move') mainEl.classList.remove('grabbing');
-}
-
-btnDraw.addEventListener('click',  () => setTool('draw'));
-btnErase.addEventListener('click', () => setTool('erase'));
-btnMove.addEventListener('click',  () => setTool('move'));
-btnUndo.addEventListener('click',  undoStroke);
-btnClear.addEventListener('click', clearCanvas);
-btnSave.addEventListener('click',  saveImage);
-
-function clearCanvas() {
-  saveUndoState();
-  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-}
-
-function saveImage() {
-  // Composite black background + drawing
-  const tmp = document.createElement('canvas');
-  tmp.width  = drawCanvas.width;
-  tmp.height = drawCanvas.height;
-  const tc = tmp.getContext('2d');
-  tc.fillStyle = '#000000';
-  tc.fillRect(0, 0, tmp.width, tmp.height);
-  tc.drawImage(drawCanvas, 0, 0);
-  const a = document.createElement('a');
-  a.href     = tmp.toDataURL('image/png');
-  a.download = 'hand-canvas.png';
-  a.click();
-}
+const drawCtx = drawCanvas.getContext('2d');
+const skelCtx = skelCanvas.getContext('2d');
 
 /* ── Undo history ───────────────────────────────────────────────────────── */
-const MAX_UNDO = 30;
+const MAX_UNDO  = 30;
 const undoStack = [];
 
 function saveUndoState() {
@@ -389,31 +168,29 @@ function saveUndoState() {
   if (undoStack.length > MAX_UNDO) undoStack.shift();
 }
 
-function undoStroke() {
-  if (undoStack.length === 0) return;
-  const state = undoStack.pop();
-  drawCtx.putImageData(state, 0, 0);
-  hudEl.textContent = '↩️ Undone';
-}
-
-// Keyboard shortcut: Ctrl+Z / Cmd+Z
+// Ctrl+Z / Cmd+Z to undo
 document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoStroke(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    if (undoStack.length === 0) return;
+    drawCtx.putImageData(undoStack.pop(), 0, 0);
+    hudEl.textContent = '↩️ Undone';
+  }
 });
 
 /* ── Grab / drag state ──────────────────────────────────────────────────── */
-let grabCanvas  = null;   // temp canvas holding the lifted region
-let grabActive  = false;
-const GRAB_RADIUS = 80;   // px – radius of the grabbed circle
+let grabCanvas = null;
+let grabActive = false;
+const GRAB_RADIUS = 80;
 
 function startGrab(cx, cy) {
   const r  = GRAB_RADIUS;
-  const sx = Math.round(cx - r);
-  const sy = Math.round(cy - r);
   const sw = r * 2;
   const sh = r * 2;
+  const sx = Math.round(cx - r);
+  const sy = Math.round(cy - r);
 
-  // Copy the circular region into a temporary canvas
+  // Capture the circular region into a temp canvas
   grabCanvas = document.createElement('canvas');
   grabCanvas.width  = sw;
   grabCanvas.height = sh;
@@ -425,7 +202,13 @@ function startGrab(cx, cy) {
   gc.drawImage(drawCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
   gc.restore();
 
-  // Erase the region from the main drawing canvas
+  // Tint the grabbed region to neon blue so it shows blue while dragging
+  gc.globalCompositeOperation = 'source-in';
+  gc.fillStyle = GRAB_COLOUR;
+  gc.fillRect(0, 0, sw, sh);
+  gc.globalCompositeOperation = 'source-over';
+
+  // Erase the lifted region from the main canvas
   drawCtx.save();
   drawCtx.globalCompositeOperation = 'destination-out';
   drawCtx.beginPath();
@@ -434,14 +217,14 @@ function startGrab(cx, cy) {
   drawCtx.restore();
 
   grabActive = true;
-  mainEl.classList.add('grabbing');
+  cursorEl.classList.add('grabbing');
 }
 
 function dropGrab(cx, cy) {
   if (!grabActive || !grabCanvas) return;
   const r = GRAB_RADIUS;
 
-  // Stamp the grabbed region onto the drawing canvas at the new position
+  // Stamp the (neon-blue-tinted) grabbed region at the new position
   drawCtx.save();
   drawCtx.globalCompositeOperation = 'source-over';
   drawCtx.beginPath();
@@ -452,13 +235,13 @@ function dropGrab(cx, cy) {
 
   grabCanvas = null;
   grabActive = false;
-  mainEl.classList.remove('grabbing');
+  cursorEl.classList.remove('grabbing');
 }
 
-/* Draw the floating grabbed region as a preview on the skeleton overlay */
 function drawGrabPreview(cx, cy) {
   if (!grabActive || !grabCanvas) return;
   const r = GRAB_RADIUS;
+
   skelCtx.save();
   skelCtx.beginPath();
   skelCtx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -466,11 +249,11 @@ function drawGrabPreview(cx, cy) {
   skelCtx.drawImage(grabCanvas, cx - r, cy - r);
   skelCtx.restore();
 
-  // Dashed amber border
+  // Neon blue dashed border
   skelCtx.save();
   skelCtx.beginPath();
   skelCtx.arc(cx, cy, r, 0, Math.PI * 2);
-  skelCtx.strokeStyle = '#fbbf24';
+  skelCtx.strokeStyle = GRAB_COLOUR;
   skelCtx.lineWidth   = 2.5;
   skelCtx.setLineDash([8, 4]);
   skelCtx.stroke();
@@ -478,16 +261,14 @@ function drawGrabPreview(cx, cy) {
   skelCtx.restore();
 }
 
-/* ── Resize canvases to fill #main ──────────────────────────────────────── */
+/* ── Resize canvases ────────────────────────────────────────────────────── */
 function resizeCanvases() {
   const w = mainEl.clientWidth;
   const h = mainEl.clientHeight;
-  // Preserve drawing
   const tmp = document.createElement('canvas');
   tmp.width  = drawCanvas.width  || w;
   tmp.height = drawCanvas.height || h;
-  const tc = tmp.getContext('2d');
-  tc.drawImage(drawCanvas, 0, 0);
+  tmp.getContext('2d').drawImage(drawCanvas, 0, 0);
   drawCanvas.width  = w; drawCanvas.height = h;
   skelCanvas.width  = w; skelCanvas.height = h;
   drawCtx.drawImage(tmp, 0, 0);
@@ -496,26 +277,16 @@ resizeCanvases();
 window.addEventListener('resize', resizeCanvases);
 
 /* ── Drawing state ──────────────────────────────────────────────────────── */
-let isDrawing  = false;
-let lastX      = null;
-let lastY      = null;
+let isDrawing = false;
+let lastX     = null;
+let lastY     = null;
 
-function paintAt(x, y, draw) {
-  if (!draw) { lastX = null; lastY = null; return; }
-
-  drawCtx.lineCap     = 'round';
-  drawCtx.lineJoin    = 'round';
-
-  if (currentTool === 'erase') {
-    drawCtx.globalCompositeOperation = 'destination-out';
-    drawCtx.strokeStyle = 'rgba(0,0,0,1)';
-    drawCtx.lineWidth   = brushSize * 4;
-  } else {
-    drawCtx.globalCompositeOperation = 'source-over';
-    drawCtx.globalAlpha = brushOpacity;
-    drawCtx.strokeStyle = currentColour;
-    drawCtx.lineWidth   = brushSize;
-  }
+function paintAt(x, y) {
+  drawCtx.lineCap   = 'round';
+  drawCtx.lineJoin  = 'round';
+  drawCtx.globalCompositeOperation = 'source-over';
+  drawCtx.strokeStyle = DRAW_COLOUR;
+  drawCtx.lineWidth   = BRUSH_SIZE;
 
   if (lastX !== null) {
     drawCtx.beginPath();
@@ -523,29 +294,16 @@ function paintAt(x, y, draw) {
     drawCtx.lineTo(x, y);
     drawCtx.stroke();
   } else {
-    // Single dot
     drawCtx.beginPath();
-    drawCtx.arc(x, y, (currentTool === 'erase' ? brushSize * 2 : brushSize / 2), 0, Math.PI * 2);
-    drawCtx.fillStyle = currentTool === 'erase' ? 'rgba(0,0,0,1)' : currentColour;
-    drawCtx.globalCompositeOperation = currentTool === 'erase' ? 'destination-out' : 'source-over';
+    drawCtx.arc(x, y, BRUSH_SIZE / 2, 0, Math.PI * 2);
+    drawCtx.fillStyle = DRAW_COLOUR;
     drawCtx.fill();
   }
 
-  drawCtx.globalAlpha = 1;
   lastX = x; lastY = y;
 }
 
-/* ── Finger-count helper ────────────────────────────────────────────────── */
-/*
- * Landmark indices (MediaPipe Hands):
- *   Thumb  tip:4  ip:3  mcp:2
- *   Index  tip:8  pip:6
- *   Middle tip:12 pip:10
- *   Ring   tip:16 pip:14
- *   Pinky  tip:20 pip:18
- *   Wrist: 0
- */
-
+/* ── Gesture classification ─────────────────────────────────────────────── */
 function isFingerUp(lm, tipIdx, pipIdx) {
   return lm[tipIdx].y < lm[pipIdx].y;
 }
@@ -556,31 +314,23 @@ function classifyGesture(lm) {
   const ringUp   = isFingerUp(lm, 16, 14);
   const pinkyUp  = isFingerUp(lm, 20, 18);
 
-  // Thumb: compare x (mirrored feed)
-  const thumbUp  = lm[4].x < lm[3].x;   // for left-hand mirror of right hand
-
-  if (indexUp && !middleUp && !ringUp && !pinkyUp)        return 'draw';      // ☝️
-  if (indexUp &&  middleUp &&  ringUp && !pinkyUp)        return 'threefinger'; // 🤞 Undo
-  if (!indexUp && !middleUp && !ringUp && !pinkyUp && !thumbUp) return 'fist'; // ✊
-  if (indexUp &&  middleUp &&  ringUp &&  pinkyUp)        return 'open';      // 🖐
-  if (thumbUp && !indexUp  && !middleUp && !ringUp && !pinkyUp) return 'thumbsup'; // 👍
+  if (indexUp && !middleUp && !ringUp && !pinkyUp) return 'draw';  // ☝️
 
   // Pinch: index tip close to thumb tip
   const dx = lm[8].x - lm[4].x;
   const dy = lm[8].y - lm[4].y;
-  if (Math.sqrt(dx*dx + dy*dy) < 0.06)                   return 'pinch';     // 🤏
+  if (Math.sqrt(dx * dx + dy * dy) < 0.06) return 'pinch';        // 🤏
 
   return 'unknown';
 }
 
-/* Smoothing buffer for gesture to avoid flicker */
+/* Smoothing buffer for gesture stability */
 const gestureHistory = [];
 const GESTURE_SMOOTH = 5;
 
 function smoothGesture(g) {
   gestureHistory.push(g);
   if (gestureHistory.length > GESTURE_SMOOTH) gestureHistory.shift();
-  // majority vote
   const counts = {};
   gestureHistory.forEach(x => counts[x] = (counts[x] || 0) + 1);
   return Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
@@ -590,40 +340,19 @@ function smoothGesture(g) {
 let smoothX = 0, smoothY = 0;
 const CURSOR_ALPHA = 0.4;
 
-/* Fist-clear cooldown (avoid repeated clears) */
-let fistCooldown  = 0;
-let thumbCooldown = 0;
-let undoCooldown  = 0;
-
-/* ── HUD messages ─────────────────────────────────────────────────────── */
-const gestureLabels = {
-  draw:        '☝️ Drawing',
-  threefinger: '🤞 Undo!',
-  fist:        '✊ Clear!',
-  open:        '🖐 Paused',
-  thumbsup:    '👍 Saving…',
-  pinch:       '🤏 Dragging…',
-  grab:        '🫴 Dragging…',
-  unknown:     '🤔 Unknown gesture',
-};
-
-/* ── MediaPipe Hands setup ──────────────────────────────────────────────── */
-let handsReady = false;
-
+/* ── MediaPipe Hands ────────────────────────────────────────────────────── */
 const hands = new Hands({
   locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
 });
 hands.setOptions({
-  maxNumHands:        1,
-  modelComplexity:    1,
+  maxNumHands:            1,
+  modelComplexity:        1,
   minDetectionConfidence: 0.7,
   minTrackingConfidence:  0.6,
 });
-
 hands.onResults(onResults);
 
 function onResults(results) {
-  // Clear skeleton overlay
   skelCtx.clearRect(0, 0, skelCanvas.width, skelCanvas.height);
 
   if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
@@ -636,108 +365,63 @@ function onResults(results) {
 
   const lm = results.multiHandLandmarks[0];
 
-  // ── Draw skeleton on skelCanvas ──────────────────────────────────────
-  drawConnectors(skelCtx, lm, HAND_CONNECTIONS, { color: 'rgba(167,139,250,0.55)', lineWidth: 2 });
-  drawLandmarks(skelCtx, lm, { color: '#a78bfa', fillColor: 'rgba(167,139,250,0.4)', radius: 3 });
+  // Draw hand skeleton
+  drawConnectors(skelCtx, lm, HAND_CONNECTIONS, { color: 'rgba(255,102,0,0.35)', lineWidth: 2 });
+  drawLandmarks(skelCtx, lm, { color: '#FF6600', fillColor: 'rgba(255,102,0,0.3)', radius: 3 });
 
-  // ── Map index-finger tip to canvas coords (video is mirrored) ────────
+  // Map index-finger tip to canvas coords (mirrored)
   const tipRaw = lm[8];
-  // x is already horizontally mirrored to match the flipped video
   const canvasX = (1 - tipRaw.x) * drawCanvas.width;
   const canvasY =       tipRaw.y  * drawCanvas.height;
 
-  // Smooth cursor
-  smoothX = smoothX + CURSOR_ALPHA * (canvasX - smoothX);
-  smoothY = smoothY + CURSOR_ALPHA * (canvasY - smoothY);
+  smoothX += CURSOR_ALPHA * (canvasX - smoothX);
+  smoothY += CURSOR_ALPHA * (canvasY - smoothY);
 
-  // Update cursor dot
   cursorEl.style.display = 'block';
   cursorEl.style.left    = `${smoothX}px`;
   cursorEl.style.top     = `${smoothY}px`;
 
-  // ── Gesture classification ────────────────────────────────────────────
-  const raw     = classifyGesture(lm);
-  const gesture = smoothGesture(raw);
+  const gesture = smoothGesture(classifyGesture(lm));
 
-  hudEl.textContent = gestureLabels[gesture] || gesture;
-
-  // ── Drop grab when user stops pinching ───────────────────────────────
+  // Drop grab when pinch is released
   if (grabActive && gesture !== 'pinch') {
     dropGrab(smoothX, smoothY);
   }
 
-  // ── React to gesture ──────────────────────────────────────────────────
-  fistCooldown  = Math.max(0, fistCooldown  - 1);
-  thumbCooldown = Math.max(0, thumbCooldown - 1);
-  undoCooldown  = Math.max(0, undoCooldown  - 1);
-
   switch (gesture) {
     case 'draw':
-      setTool('draw');
       if (!isDrawing) saveUndoState();
-      paintAt(smoothX, smoothY, true);
+      paintAt(smoothX, smoothY);
       isDrawing = true;
+      hudEl.textContent = '☝️ Drawing';
       break;
 
-    case 'threefinger':
-      if (undoCooldown === 0) {
-        undoStroke();
-        undoCooldown = 45;
-      }
+    case 'pinch':
+      if (!grabActive) startGrab(smoothX, smoothY);
+      drawGrabPreview(smoothX, smoothY);
       isDrawing = false; lastX = null; lastY = null;
+      hudEl.textContent = '🤏 Moving…';
       break;
-
-    case 'fist':
-      if (fistCooldown === 0) {
-        clearCanvas();
-        fistCooldown = 45; // ~1.5 s @ 30 fps
-      }
-      isDrawing = false; lastX = null; lastY = null;
-      break;
-
-    case 'open':
-      // Pause – lift pen
-      isDrawing = false; lastX = null; lastY = null;
-      break;
-
-    case 'thumbsup':
-      if (thumbCooldown === 0) {
-        saveImage();
-        thumbCooldown = 60;
-      }
-      isDrawing = false; lastX = null; lastY = null;
-      break;
-
-    case 'pinch': {
-      if (currentTool === 'move') {
-        // ── Grab & drag ────────────────────────────────────────────────
-        if (!grabActive) startGrab(smoothX, smoothY);
-        drawGrabPreview(smoothX, smoothY);
-        hudEl.textContent = gestureLabels.grab;
-      }
-      // pinch in draw/erase mode does nothing (brush resize removed)
-      isDrawing = false; lastX = null; lastY = null;
-      break;
-    }
 
     default:
       isDrawing = false; lastX = null; lastY = null;
+      hudEl.textContent = '✋ Ready';
   }
 }
 
 /* ── Camera start ────────────────────────────────────────────────────────── */
 startBtn.addEventListener('click', async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720 } });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: 1280, height: 720 },
+    });
     videoEl.srcObject = stream;
     await videoEl.play();
 
     camNotice.style.display = 'none';
 
     const camera = new Camera(videoEl, {
-      onFrame: async () => {
-        await hands.send({ image: videoEl });
-      },
+      onFrame: async () => { await hands.send({ image: videoEl }); },
       width: 1280,
       height: 720,
     });
@@ -749,32 +433,34 @@ startBtn.addEventListener('click', async () => {
   }
 });
 
-/* ── Mouse / touch fallback (draw / move with pointer) ──────────────────── */
+/* ── Mouse / touch fallback ─────────────────────────────────────────────── */
 let mouseDown = false;
 
+// Right-click triggers grab/move; left click draws (mirrors hand gestures)
 drawCanvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
   mouseDown = true;
   lastX = null; lastY = null;
   saveUndoState();
-  if (currentTool === 'move') {
+  if (e.button === 2) {
     startGrab(e.offsetX, e.offsetY);
   } else {
-    paintAt(e.offsetX, e.offsetY, true);
+    paintAt(e.offsetX, e.offsetY);
   }
 });
 
 drawCanvas.addEventListener('pointermove', e => {
   if (!mouseDown) return;
-  if (currentTool === 'move' && grabActive) {
+  if (grabActive) {
     skelCtx.clearRect(0, 0, skelCanvas.width, skelCanvas.height);
     drawGrabPreview(e.offsetX, e.offsetY);
   } else {
-    paintAt(e.offsetX, e.offsetY, true);
+    paintAt(e.offsetX, e.offsetY);
   }
 });
 
 drawCanvas.addEventListener('pointerup', e => {
-  if (currentTool === 'move' && grabActive) {
+  if (grabActive) {
     skelCtx.clearRect(0, 0, skelCanvas.width, skelCanvas.height);
     dropGrab(e.offsetX, e.offsetY);
   }
@@ -782,12 +468,15 @@ drawCanvas.addEventListener('pointerup', e => {
 });
 
 drawCanvas.addEventListener('pointerleave', e => {
-  if (currentTool === 'move' && grabActive) {
+  if (grabActive) {
     skelCtx.clearRect(0, 0, skelCanvas.width, skelCanvas.height);
     dropGrab(e.offsetX, e.offsetY);
   }
   mouseDown = false; lastX = null; lastY = null;
 });
+
+// Prevent context menu on right-click so grab works smoothly
+drawCanvas.addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>
 </html>
